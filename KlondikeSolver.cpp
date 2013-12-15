@@ -41,11 +41,14 @@ int main(int argc, char * argv[]) {
 	int tryCount = 0;
 	string fileContents;
 	bool replay = false;
+	bool showMoves = false;
 
 	for (int i = 1; i < argc; i++) {
 		if (_stricmp(argv[i], "-draw") == 0 || _stricmp(argv[i], "/draw") == 0 || _stricmp(argv[i], "-dc") == 0 || _stricmp(argv[i], "/dc") == 0) {
 			if (i + 1 >= argc) { cout << "You must specify draw count."; return 0; }
-			s.SetDrawCount(atoi(argv[i + 1]));
+			int drawCount = atoi(argv[i + 1]);
+			if (drawCount < 1 || drawCount > 12) { cout << "Please specify a valid draw count from 1 to 12."; return 0; }
+			s.SetDrawCount(drawCount);
 			i++;
 		} else if (_stricmp(argv[i], "-deck") == 0 || _stricmp(argv[i], "/deck") == 0 || _stricmp(argv[i], "-d") == 0 || _stricmp(argv[i], "/d") == 0) {
 			if (i + 1 >= argc) { cout << "You must specify deck to load."; return 0; }
@@ -77,11 +80,13 @@ int main(int argc, char * argv[]) {
 			i++;
 		} else if (_stricmp(argv[i], "-mp") == 0 || _stricmp(argv[i], "/mp") == 0 || _stricmp(argv[i], "-multi") == 0 || _stricmp(argv[i], "/multi") == 0) {
 			multiThreaded = true;
+		} else if (_stricmp(argv[i], "-mvs") == 0 || _stricmp(argv[i], "/mvs") == 0 || _stricmp(argv[i], "-moves") == 0 || _stricmp(argv[i], "/moves") == 0) {
+			showMoves = true;
 		} else if (_stricmp(argv[i], "-r") == 0 || _stricmp(argv[i], "/r") == 0) {
 			replay = true;
 		} else if (_stricmp(argv[i], "-?") == 0 || _stricmp(argv[i], "/?") == 0 || _stricmp(argv[i], "?") == 0 || _stricmp(argv[i], "/help") == 0 || _stricmp(argv[i], "-help") == 0) {
 			cout << "Klondike Solver V2.0\nSolves games of Klondike (Patience) solitaire minimally or a faster best try.\n\n";
-			cout << "KlondikeSolver [/DC] [/D] [/G] [/O] [/MP] [/S] [/T] [/R] [Path]\n\n";
+			cout << "KlondikeSolver [/DC] [/D] [/G] [/O] [/MP] [/S] [/T] [/R] [/MVS] [Path]\n\n";
 			cout << "  /DRAW # [/DC #]       Sets the draw count to use when solving. Defaults to 1.\n\n";
 			cout << "  /DECK str [/D str]    Loads the deck specified by the string.\n\n";
 			cout << "  /GAME # [/G #]        Loads a random game with seed #.\n\n";
@@ -90,7 +95,9 @@ int main(int argc, char * argv[]) {
 			cout << "  /MULTI [/MP]          Uses 2 threads to solve deals.\n";
 			cout << "                        Only works when solving minimally.\n\n";
 			cout << "  /OUT # [/O #]         Sets the output method of the solver.\n";
-			cout << "                        Defaults to 0, 1 for Pysol, 2 for minimal output.\n\n";
+			cout << "                        Defaults to 0, 1 for Pysol, and 2 for minimal output.\n";
+			cout << "  /MOVES [/MVS]         Will also output a compact list of moves made when a\n";
+			cout << "                        solution is found.";
 			cout << "  /STATES # [/S #]      Sets the maximum number of game states to evaluate\n";
 			cout << "                        before terminating. Defaults to 1,000,000.\n\n";
 			cout << "  /TRY # [/T #]         Run the solver # of times in a best attempt mode, which\n";
@@ -120,9 +127,9 @@ int main(int argc, char * argv[]) {
 		}
 		s.ResetGame();
 		if (outputMethod == 0) {
-			cout << s.GameDiagram() << '\n';
+			cout << s.GameDiagram() << "\n\n";
 		} else if (outputMethod == 1) {
-			cout << s.GameDiagramPysol() << '\n';
+			cout << s.GameDiagramPysol() << "\n\n";
 		}
 
 		clock_t total = clock();
@@ -164,7 +171,25 @@ int main(int argc, char * argv[]) {
 		cout << " Took " << (clock() - total) << " ms.\n";
 
 		if (outputMethod < 2 && replay && canReplay) {
-			//todo add replay output
+			int movesToMake = s.MovesMadeCount();
+			s.ResetGame();
+			for (int i = 0; i < movesToMake; i++) {
+				cout << "----------------------------------------\n";
+				cout << s.GetMoveInfo(s[i]) << "\n\n";
+				s.MakeMove(s[i]);
+
+				if (outputMethod == 0) {
+					cout << s.GameDiagram() << "\n\n";
+				} else {
+					cout << s.GameDiagramPysol() << "\n\n";
+				}
+			}
+			cout << "----------------------------------------\n";
+		}
+		if (showMoves && canReplay) {
+			cout << s.MovesMade() << "\n\n";
+		} else if (showMoves) {
+			cout << "\n";
 		}
 	} while (fileContents.size() > fileIndex);
 

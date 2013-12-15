@@ -51,6 +51,7 @@ public:
 	int MinimumMovesLeft();
 	void SetDrawCount(int drawCount);
 	HashKey GameState();
+	string GetMoveInfo(Move move);
 	bool LoadSolitaire(string const& cardSet);
 	string GetSolitaire();
 	bool LoadPysol(string const& cardSet);

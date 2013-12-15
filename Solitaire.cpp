@@ -1,10 +1,12 @@
 #include<sstream>
 #include<thread>
-#include<iomanip>
-#include<iostream>
 #include<memory>
 #include"Solitaire.h"
 using namespace std;
+
+const char PILES[] = { "W1234567GCDSH" };
+const char RANKS[] = { "0A23456789TJQK" };
+const char SUITS[] = { "CDSH" };
 
 SolitaireWorker::SolitaireWorker(Solitaire & solitaire, int maxClosedCount) {
 	this->solitaire = &solitaire;
@@ -66,7 +68,6 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 			if (s.FoundationCount() > maxFoundationCount || (s.FoundationCount() == maxFoundationCount && bestSolutionMoveCount > movesTotal)) {
 				bestSolutionMoveCount = movesTotal;
 				maxFoundationCount = s.FoundationCount();
-				//cout << setw(3) << bestSolutionMoveCount << " - " << setw(2) << maxFoundationCount << " C: " << setw(9) << closed.Size() << " L: " << setw(4) << closed.MaxLength() << " U: " << setw(8) << closed.SlotsUsed() << " O: " << setw(9) << openCount << '\n';
 
 				//Save solution
 				for (int i = s.MovesMadeCount() - 1; i >= 0; i--) {
@@ -162,7 +163,6 @@ SolveResult SolitaireWorker::Run(int numThreads) {
 		solitaire->MakeMove(bestSolution[i]);
 	}
 
-	//cout << setw(3) << bestSolutionMoveCount << " - " << setw(2) << maxFoundationCount << " C: " << setw(9) << closed->Size() << " L: " << setw(4) << closed->MaxLength() << " U: " << setw(8) << closed->SlotsUsed() << " O: " << setw(9) << openCount << '\n';
 	SolveResult result = closed->Size() >= maxClosedCount ? (maxFoundationCount == 52 ? SolvedMayNotBeMinimal : CouldNotComplete) : (maxFoundationCount == 52 ? SolvedMinimal : Impossible);
 	delete closed;
 	return result;
@@ -361,7 +361,6 @@ SolveResult Solitaire::SolveMinimal(int maxClosedCount) {
 		if (foundationCount > maxFoundationCount || (foundationCount == maxFoundationCount && bestSolutionMoveCount > movesTotal)) {
 			bestSolutionMoveCount = movesTotal;
 			maxFoundationCount = foundationCount;
-			//cout << setw(3) << bestSolutionMoveCount << " - " << setw(2) << maxFoundationCount << " C: " << setw(9) << closed.Size() << " L: " << setw(4) << closed.MaxLength() << " U: " << setw(8) << closed.SlotsUsed() << " O: " << setw(9) << openCount << '\n';
 
 			//Save solution
 			for (int i = 0; i < movesMadeCount; i++) {
@@ -402,7 +401,6 @@ SolveResult Solitaire::SolveMinimal(int maxClosedCount) {
 			UndoMove();
 		}
 	}
-	//cout << setw(3) << bestSolutionMoveCount << " - " << setw(2) << maxFoundationCount << " C: " << setw(9) << closed.Size() << " L: " << setw(4) << closed.MaxLength() << " U: " << setw(8) << closed.SlotsUsed() << " O: " << setw(9) << openCount << " T: " << setw(9) << totalOpenCount << '\n';
 
 	//Reset game to best solution found
 	ResetGame(drawCount);
@@ -978,8 +976,6 @@ bool Solitaire::LoadPysol(string const& cardSet) {
 	return true;
 }
 string Solitaire::GetPysol() {
-	const char RANKS[] = { "XA23456789TJQK" };
-	const char SUITS[] = { "CDSH" };
 	stringstream cardSet;
 	cardSet << "Talon: ";
 	for (int i = 28; i < 52; i++) {
@@ -1039,14 +1035,15 @@ HashKey Solitaire::GameState() {
 		int upSize = pile.UpSize();
 
 		int added = 10;
-		bits += 10;
 		mask <<= 6;
-		mask |= upSize > 0 ? pile.Up(0).Value + 1 : 0;
+		if (upSize > 0) {
+			added += upSize - 1;
+			mask |= pile.Up(0).Value + 1;
+		}
+		bits += added;
 		mask <<= 4;
 		mask |= upSize;
 		for (int j = 1; j < upSize; ++j) {
-			bits++;
-			added++;
 			mask <<= 1;
 			mask |= pile.Up(j).Suit >> 1;
 		}
@@ -1064,10 +1061,64 @@ HashKey Solitaire::GameState() {
 
 	return key;
 }
+string Solitaire::GetMoveInfo(Move move) {
+	stringstream ss;
+	int stockSize = piles[STOCK].Size();
+	int wasteSize = piles[WASTE].Size();
+
+	char fromRank = '0';
+	char fromSuit = 'X';
+
+	if (move.Extra > 0) {
+		if (move.From != WASTE) {
+			if (move.Count > 1) {
+				ss << "Move " << (int)move.Count << " cards from tableau " << (int)move.From << " on to tableau " << (int)move.To;
+			} else {
+				fromRank = RANKS[piles[move.From].Low().Rank];
+				fromSuit = SUITS[piles[move.From].Low().Suit];
+				ss << "Move " << fromRank << fromSuit << " from " << (move.From == WASTE ? "waste" : (move.From >= FOUNDATION1C ? "foundation" : "tableau "));
+				if (move.From >= TABLEAU1 && move.From <= TABLEAU7) { ss << (int)move.From; }
+				ss << " on to " << (move.To >= FOUNDATION1C ? "foundation" : "tableau ");
+				if (move.To >= TABLEAU1 && move.To <= TABLEAU7) { ss << (int)move.To; }
+			}
+			ss << " and flip tableau " << (int)move.From;
+		} else {
+			int drawAmount = 0;
+			if (move.Extra <= stockSize) {
+				drawAmount = move.Extra / drawCount + ((move.Extra % drawCount) == 0 ? 0 : 1);
+				fromRank = RANKS[piles[STOCK].Up(stockSize - move.Extra).Rank];
+				fromSuit = SUITS[piles[STOCK].Up(stockSize - move.Extra).Suit];
+			} else {
+				drawAmount = move.Extra - stockSize - stockSize - wasteSize;
+				drawAmount = drawAmount / drawCount + ((drawAmount % drawCount) == 0 ? 0 : 1);
+				drawAmount += stockSize / drawCount + ((stockSize % drawCount) == 0 ? 0 : 1);
+
+				int cardsToMove = stockSize + stockSize + wasteSize + wasteSize - move.Extra;
+				if (cardsToMove > 0) {
+					fromRank = RANKS[piles[WASTE].Up(wasteSize - cardsToMove - 1).Rank];
+					fromSuit = SUITS[piles[WASTE].Up(wasteSize - cardsToMove - 1).Suit];
+				} else {
+					fromRank = RANKS[piles[STOCK].Up(stockSize + cardsToMove).Rank];
+					fromSuit = SUITS[piles[STOCK].Up(stockSize + cardsToMove).Suit];
+				}
+			}
+			ss << "Draw " << drawAmount << (drawAmount == 1 ? " time " : " times ") << "and move " << fromRank << fromSuit << " from waste on to " << (move.To >= FOUNDATION1C ? "foundation" : "tableau ");
+			if (move.To >= TABLEAU1 && move.To <= TABLEAU7) { ss << (int)move.To; }
+		}
+	} else if (move.Count > 1) {
+		ss << "Move " << (int)move.Count << " cards from tableau " << (int)move.From << " on to tableau " << (int)move.To;
+	} else {
+		fromRank = RANKS[piles[move.From].Low().Rank];
+		fromSuit = SUITS[piles[move.From].Low().Suit];
+		ss << "Move " << fromRank << fromSuit << " from " << (move.From == WASTE ? "waste" : (move.From >= FOUNDATION1C ? "foundation" : "tableau "));
+		if (move.From >= TABLEAU1 && move.From <= TABLEAU7) { ss << (int)move.From; }
+		ss << " on to " << (move.To >= FOUNDATION1C ? "foundation" : "tableau ");
+		if (move.To >= TABLEAU1 && move.To <= TABLEAU7) { ss << (int)move.To; }
+	}
+	return ss.str();
+}
 string Solitaire::GameDiagram() {
 	stringstream ss;
-	const char RANKS[] = { "XA23456789TJQK" };
-	const char SUITS[] = { "CDSH" };
 	for (int i = 0; i < 13; i++) {
 		if (i < 10) {
 			ss << ' ';
@@ -1094,8 +1145,6 @@ string Solitaire::GameDiagram() {
 	return ss.str();
 }
 string Solitaire::GameDiagramPysol() {
-	const char RANKS[] = { "0A23456789TJQK" };
-	const char SUITS[] = { "CDSH" };
 	stringstream ss;
 	ss << "Foundations: H-" << RANKS[piles[FOUNDATION4H].Size()] << " C-" << RANKS[piles[FOUNDATION1C].Size()] << " D-" << RANKS[piles[FOUNDATION2D].Size()] << " S-" << RANKS[piles[FOUNDATION3S].Size()];
 	ss << "\nTalon: ";
@@ -1142,7 +1191,6 @@ string Solitaire::GameDiagramPysol() {
 	return ss.str();
 }
 void AddMove(stringstream & ss, Move m, int stockSize, int wasteSize, int drawCount, bool combine) {
-	const char PILES[] = { "W1234567GCDSH" };
 	if (m.Extra > 0) {
 		if (m.From != WASTE) {
 			if (m.Count > 1) {
