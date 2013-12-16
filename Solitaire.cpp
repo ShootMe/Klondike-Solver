@@ -62,9 +62,10 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 		}
 		movesTotal = s.MovesMadeNormalizedCount();
 
-		{
-			unique_lock<mutex> lck(mtx);
-			//Check for best solution to foundations
+
+		//Check for best solution to foundations
+		if (s.FoundationCount() > maxFoundationCount || (s.FoundationCount() == maxFoundationCount && bestSolutionMoveCount > movesTotal)) {
+			mtx.lock();
 			if (s.FoundationCount() > maxFoundationCount || (s.FoundationCount() == maxFoundationCount && bestSolutionMoveCount > movesTotal)) {
 				bestSolutionMoveCount = movesTotal;
 				maxFoundationCount = s.FoundationCount();
@@ -74,14 +75,17 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 					bestSolution[i] = s[i];
 				}
 				bestSolution[s.MovesMadeCount()].Count = 255;
-			} else if (maxFoundationCount == 52) {
-				//Dont check state if above or equal to current best solution
-				int helper = s.MinimumMovesLeft();
-				helper += movesTotal;
-				if (helper >= bestSolutionMoveCount) {
-					numProcessing--;
-					continue;
-				}
+			}
+			mtx.unlock();
+		} else if (maxFoundationCount == 52) {
+			//Dont check state if above or equal to current best solution
+			int helper = s.MinimumMovesLeft();
+			helper += movesTotal;
+			if (helper >= bestSolutionMoveCount) {
+				mtx.lock();
+				numProcessing--;
+				mtx.unlock();
+				continue;
 			}
 		}
 
@@ -116,10 +120,9 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 			s.UndoMove();
 		}
 
-		{
-			unique_lock<mutex> lck(mtx);
-			numProcessing--;
-		}
+		mtx.lock();
+		numProcessing--;
+		mtx.unlock();
 	}
 }
 SolveResult SolitaireWorker::Run(int numThreads) {
@@ -162,7 +165,7 @@ SolveResult SolitaireWorker::Run(int numThreads) {
 	for (int i = 0; bestSolution[i].Count < 255; i++) {
 		solitaire->MakeMove(bestSolution[i]);
 	}
-
+	
 	SolveResult result = closed->Size() >= maxClosedCount ? (maxFoundationCount == 52 ? SolvedMayNotBeMinimal : CouldNotComplete) : (maxFoundationCount == 52 ? SolvedMinimal : Impossible);
 	delete closed;
 	return result;
@@ -187,7 +190,7 @@ SolveResult Solitaire::SolveFast(int maxMovesToCheckPerBranch, int maxClosedCoun
 	Move movesToMake[512];
 	Move bestSolution[512];
 	bestSolution[0].Count = 255;
-	int startMoves = MinimumMovesLeft() + MovesMadeNormalizedCount();
+	int startMoves = MovesMadeNormalizedCount() + MinimumMovesLeft();
 
 	shared_ptr<MoveNode> firstNode = movesMadeCount > 0 ? make_shared<MoveNode>(movesMade[movesMadeCount - 1]) : NULL;
 	shared_ptr<MoveNode> node = firstNode;
@@ -250,10 +253,10 @@ SolveResult Solitaire::SolveFast(int maxMovesToCheckPerBranch, int maxClosedCoun
 
 		//Make available moves and add them to be evaulated
 		int movesToAdd = movesAvailableCount > maxMovesToCheckPerBranch ? maxMovesToCheckPerBranch : movesAvailableCount;
-		int movesTried[5] = { -1, -1, -1, -1, -1 };
+		int movesTried[4] = { -1, -1, -1, -1 };
 		while (movesToAdd-- > 0) {
 			int i = random.Next() % movesAvailableCount;
-			while (movesTried[0] == i || movesTried[1] == i || movesTried[2] == i || movesTried[3] == i || movesTried[4] == i) {
+			while (movesTried[0] == i || movesTried[1] == i || movesTried[2] == i || movesTried[3] == i) {
 				i = random.Next() % movesAvailableCount;
 			}
 			movesTried[movesToAdd] = i;

@@ -92,7 +92,7 @@ int main(int argc, char * argv[]) {
 			cout << "  /GAME # [/G #]        Loads a random game with seed #.\n\n";
 			cout << "  FilePath              Solves deals specified in the file.\n\n";
 			cout << "  /R                    Replays solution to output if one is found.\n\n";
-			cout << "  /MULTI [/MP]          Uses 2 threads to solve deals.\n";
+			cout << "  /MULTI [/MP]          Uses 3 threads to solve deals.\n";
 			cout << "                        Only works when solving minimally.\n\n";
 			cout << "  /OUT # [/O #]         Sets the output method of the solver.\n";
 			cout << "                        Defaults to 0, 1 for Pysol, and 2 for minimal output.\n";
@@ -151,7 +151,7 @@ int main(int argc, char * argv[]) {
 				result = SolvedMayNotBeMinimal;
 			}
 		} else if (multiThreaded) {
-			result = s.SolveMinimalMultithreaded(2, maxClosedCount);
+			result = s.SolveMinimalMultithreaded(3, maxClosedCount);
 		} else {
 			result = s.SolveMinimal(maxClosedCount);
 		}
