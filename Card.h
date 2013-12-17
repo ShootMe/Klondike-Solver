@@ -28,6 +28,6 @@ enum Suits {
 struct Card {
 	unsigned char Suit, Rank, IsOdd, IsRed, Foundation, Value;
 	void Clear();
-	void Set(int value);
+	void Set(unsigned char value);
 };
 #endif

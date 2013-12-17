@@ -38,7 +38,7 @@ int main(int argc, char * argv[]) {
 	int outputMethod = 0;
 	bool multiThreaded = false;
 	int maxClosedCount = 0;
-	int tryCount = 0;
+	bool fastMode = false;
 	string fileContents;
 	bool replay = false;
 	bool showMoves = false;
@@ -72,12 +72,9 @@ int main(int argc, char * argv[]) {
 			maxClosedCount = atoi(argv[i + 1]);
 			if (maxClosedCount < 0) { cout << "You must specify a valid max number of states."; return 0; }
 			i++;
-		} else if (_stricmp(argv[i], "-try") == 0 || _stricmp(argv[i], "/try") == 0 || _stricmp(argv[i], "-t") == 0 || _stricmp(argv[i], "/t") == 0) {
-			if (i + 1 >= argc) { cout << "You must specify number of times to try."; return 0; }
-			tryCount = atoi(argv[i + 1]);
-			if (tryCount <= 0 || tryCount > 100) { cout << "You must specify a valid number of times to try."; return 0; }
+		} else if (_stricmp(argv[i], "-fast") == 0 || _stricmp(argv[i], "/fast") == 0 || _stricmp(argv[i], "-f") == 0 || _stricmp(argv[i], "/f") == 0) {
+			fastMode = true;
 			if (maxClosedCount == 0) { maxClosedCount = 100000; }
-			i++;
 		} else if (_stricmp(argv[i], "-mp") == 0 || _stricmp(argv[i], "/mp") == 0 || _stricmp(argv[i], "-multi") == 0 || _stricmp(argv[i], "/multi") == 0) {
 			multiThreaded = true;
 		} else if (_stricmp(argv[i], "-mvs") == 0 || _stricmp(argv[i], "/mvs") == 0 || _stricmp(argv[i], "-moves") == 0 || _stricmp(argv[i], "/moves") == 0) {
@@ -86,11 +83,11 @@ int main(int argc, char * argv[]) {
 			replay = true;
 		} else if (_stricmp(argv[i], "-?") == 0 || _stricmp(argv[i], "/?") == 0 || _stricmp(argv[i], "?") == 0 || _stricmp(argv[i], "/help") == 0 || _stricmp(argv[i], "-help") == 0) {
 			cout << "Klondike Solver V2.0\nSolves games of Klondike (Patience) solitaire minimally or a faster best try.\n\n";
-			cout << "KlondikeSolver [/DC] [/D] [/G] [/O] [/MP] [/S] [/T] [/R] [/MVS] [Path]\n\n";
+			cout << "KlondikeSolver [/DC] [/D] [/G] [/O] [/MP] [/S] [/F] [/R] [/MVS] [Path]\n\n";
 			cout << "  /DRAW # [/DC #]       Sets the draw count to use when solving. Defaults to 1.\n\n";
 			cout << "  /DECK str [/D str]    Loads the deck specified by the string.\n\n";
 			cout << "  /GAME # [/G #]        Loads a random game with seed #.\n\n";
-			cout << "  FilePath              Solves deals specified in the file.\n\n";
+			cout << "  Path                  Solves deals specified in the file.\n\n";
 			cout << "  /R                    Replays solution to output if one is found.\n\n";
 			cout << "  /MULTI [/MP]          Uses 3 threads to solve deals.\n";
 			cout << "                        Only works when solving minimally.\n\n";
@@ -100,8 +97,8 @@ int main(int argc, char * argv[]) {
 			cout << "                        solution is found.";
 			cout << "  /STATES # [/S #]      Sets the maximum number of game states to evaluate\n";
 			cout << "                        before terminating. Defaults to 1,000,000.\n\n";
-			cout << "  /TRY # [/T #]         Run the solver # of times in a best attempt mode, which\n";
-			cout << "                        is faster, but not guaranteed to give minimal solution.\n";
+			cout << "  /FAST [/F]            Run the solver in a best attempt mode, which is\n";
+			cout << "                        faster, but not guaranteed to give minimal solution.\n";
 			return 0;
 		} else {
 			if (commandLoaded) { cout << "Only one method can be specified (deck/game/file)."; return 0; }
@@ -134,22 +131,8 @@ int main(int argc, char * argv[]) {
 
 		clock_t total = clock();
 		SolveResult result = CouldNotComplete;
-		if (tryCount > 0) {
-			int trys = 0;
-			Solitaire best = s;
-			int bestMoveCount = 512;
-			while (result != Impossible && trys++ < tryCount) {
-				s.ResetGame();
-				result = s.SolveFast((trys & 1) == 0 ? 2 : 3, maxClosedCount);
-				if ((result == SolvedMinimal || result == SolvedMayNotBeMinimal) && s.MovesMadeNormalizedCount() < bestMoveCount) {
-					bestMoveCount = s.MovesMadeNormalizedCount();
-					best = s;
-				}
-			}
-			if (bestMoveCount < 512) {
-				s = best;
-				result = SolvedMayNotBeMinimal;
-			}
+		if (fastMode) {
+			result = s.SolveFast(maxClosedCount);
 		} else if (multiThreaded) {
 			result = s.SolveMinimalMultithreaded(3, maxClosedCount);
 		} else {

@@ -165,14 +165,13 @@ SolveResult SolitaireWorker::Run(int numThreads) {
 	for (int i = 0; bestSolution[i].Count < 255; i++) {
 		solitaire->MakeMove(bestSolution[i]);
 	}
-	
+
 	SolveResult result = closed->Size() >= maxClosedCount ? (maxFoundationCount == 52 ? SolvedMayNotBeMinimal : CouldNotComplete) : (maxFoundationCount == 52 ? SolvedMinimal : Impossible);
 	delete closed;
 	return result;
 }
 
-SolveResult Solitaire::SolveFast(int maxMovesToCheckPerBranch, int maxClosedCount) {
-	if (maxMovesToCheckPerBranch <= 1 || maxMovesToCheckPerBranch > 5) { return CouldNotComplete; }
+SolveResult Solitaire::SolveFast(int maxClosedCount) {
 	MakeAutoMoves();
 	if (movesAvailableCount == 0) { return foundationCount == 52 ? SolvedMinimal : Impossible; }
 
@@ -191,7 +190,8 @@ SolveResult Solitaire::SolveFast(int maxMovesToCheckPerBranch, int maxClosedCoun
 	Move bestSolution[512];
 	bestSolution[0].Count = 255;
 	int startMoves = MovesMadeNormalizedCount() + MinimumMovesLeft();
-
+	int threeClosed = maxClosedCount >> 2;
+	int twoClosed = maxClosedCount >> 1;
 	shared_ptr<MoveNode> firstNode = movesMadeCount > 0 ? make_shared<MoveNode>(movesMade[movesMadeCount - 1]) : NULL;
 	shared_ptr<MoveNode> node = firstNode;
 	for (int i = movesMadeCount - 2; i >= 0; i--) {
@@ -252,15 +252,9 @@ SolveResult Solitaire::SolveFast(int maxMovesToCheckPerBranch, int maxClosedCoun
 		}
 
 		//Make available moves and add them to be evaulated
-		int movesToAdd = movesAvailableCount > maxMovesToCheckPerBranch ? maxMovesToCheckPerBranch : movesAvailableCount;
-		int movesTried[4] = { -1, -1, -1, -1 };
-		while (movesToAdd-- > 0) {
-			int i = random.Next() % movesAvailableCount;
-			while (movesTried[0] == i || movesTried[1] == i || movesTried[2] == i || movesTried[3] == i) {
-				i = random.Next() % movesAvailableCount;
-			}
-			movesTried[movesToAdd] = i;
-
+		Move bestMove1, bestMove2, bestMove3;
+		int bestMoveAdded1 = 512, bestMoveHelper1 = 512, bestMoveAdded2 = 512, bestMoveHelper2 = 512, bestMoveAdded3 = 512, bestMoveHelper3 = 512;
+		for (int i = 0; i < movesAvailableCount; i++) {
 			Move move = movesAvailable[i];
 			int movesAdded = MovesAdded(move);
 
@@ -271,16 +265,83 @@ SolveResult Solitaire::SolveFast(int maxMovesToCheckPerBranch, int maxClosedCoun
 			if (maxFoundationCount < 52 || movesAdded < bestSolutionMoveCount) {
 				int helper = movesAdded;
 				helper += 52 - foundationCount + roundCount;
-				HashKey key = GameState();
-				KeyValue<int> * result = closed.Add(key, movesAdded);
-				if (result == NULL || result->Value > movesAdded) {
-					node = make_shared<MoveNode>(move, firstNode);
-					if (result != NULL) { result->Value = movesAdded; }
 
-					totalOpenCount++;
-					openCount++;
-					open[helper].push(node);
+				if (helper < bestMoveHelper1) {
+					if (closed.Size() < twoClosed && bestMoveHelper1 < bestMoveHelper2) {
+						bestMove2 = bestMove1;
+						bestMoveAdded2 = bestMoveAdded1;
+						bestMoveHelper2 = bestMoveHelper1;
+					} else if (closed.Size() < threeClosed && bestMoveHelper1 < bestMoveHelper3) {
+						bestMove3 = bestMove1;
+						bestMoveAdded3 = bestMoveAdded1;
+						bestMoveHelper3 = bestMoveHelper1;
+					}
+					bestMove1 = move;
+					bestMoveAdded1 = movesAdded;
+					bestMoveHelper1 = helper;
+				} else if (closed.Size() < twoClosed && helper < bestMoveHelper2) {
+					if (closed.Size() < threeClosed && bestMoveHelper2 < bestMoveHelper3) {
+						bestMove3 = bestMove2;
+						bestMoveAdded3 = bestMoveAdded2;
+						bestMoveHelper3 = bestMoveHelper2;
+					}
+					bestMove2 = move;
+					bestMoveAdded2 = movesAdded;
+					bestMoveHelper2 = helper;
+				} else if (closed.Size() < threeClosed && helper < bestMoveHelper3) {
+					bestMove3 = move;
+					bestMoveAdded3 = movesAdded;
+					bestMoveHelper3 = helper;
 				}
+			}
+
+			UndoMove();
+		}
+
+		if (bestMoveHelper1 < 512) {
+			MakeMove(bestMove1);
+
+			HashKey key = GameState();
+			KeyValue<int> * result = closed.Add(key, bestMoveAdded1);
+			if (result == NULL || result->Value > bestMoveAdded1) {
+				node = make_shared<MoveNode>(bestMove1, firstNode);
+				if (result != NULL) { result->Value = bestMoveAdded1; }
+
+				totalOpenCount++;
+				openCount++;
+				open[bestMoveHelper1].push(node);
+			}
+
+			UndoMove();
+		}
+		if (bestMoveHelper2 < 512) {
+			MakeMove(bestMove2);
+
+			HashKey key = GameState();
+			KeyValue<int> * result = closed.Add(key, bestMoveAdded2);
+			if (result == NULL || result->Value > bestMoveAdded2) {
+				node = make_shared<MoveNode>(bestMove2, firstNode);
+				if (result != NULL) { result->Value = bestMoveAdded2; }
+
+				totalOpenCount++;
+				openCount++;
+				open[bestMoveHelper2].push(node);
+			}
+
+			UndoMove();
+		}
+		if (bestMoveHelper3 < 512) {
+			MakeMove(bestMove3);
+
+			HashKey key = GameState();
+			KeyValue<int> * result = closed.Add(key, bestMoveAdded3);
+			if (result == NULL || result->Value > bestMoveAdded3) {
+				node = make_shared<MoveNode>(bestMove3, firstNode);
+				if (result != NULL) { result->Value = bestMoveAdded3; }
+
+				totalOpenCount++;
+				openCount++;
+				open[bestMoveHelper3].push(node);
 			}
 
 			UndoMove();
@@ -412,9 +473,59 @@ SolveResult Solitaire::SolveMinimal(int maxClosedCount) {
 	}
 	return closed.Size() >= maxClosedCount ? (maxFoundationCount == 52 ? SolvedMayNotBeMinimal : CouldNotComplete) : (maxFoundationCount == 52 ? SolvedMinimal : Impossible);
 }
+int Solitaire::GetTalonCards(Card talon[], int talonMoves[]) {
+	int index = 0;
+
+	//Check waste
+	Pile & waste = piles[WASTE];
+	int wasteSize = waste.Size();
+	if (wasteSize > 0) {
+		talon[index] = waste.Low();
+		talonMoves[index++] = 0;
+	}
+
+	//Check cards waiting to be turned over from stock
+	Pile & stock = piles[STOCK];
+	int stockSize = stock.Size();
+	for (int j = (stockSize > 0 && stockSize - drawCount <= 0) ? 0 : stockSize - drawCount; j >= 0; j -= drawCount) {
+		talon[index] = stock.Up(j);
+		talonMoves[index++] = stockSize - j;
+
+		if (j > 0 && j < drawCount) { j = drawCount; }
+	}
+
+	//Check cards already turned over in the waste, meaning we have to "redeal" the deck to get to it
+	int amountToDraw = stockSize;
+	amountToDraw += stockSize;
+	amountToDraw += wasteSize;
+	amountToDraw++;
+	wasteSize--;
+
+	int lastIndex = drawCount - 1;
+	while (lastIndex < wasteSize) {
+		talon[index] = waste.Up(lastIndex);
+		talonMoves[index++] = amountToDraw + lastIndex;
+		lastIndex += drawCount;
+	}
+
+	//Check cards in stock after a "redeal". Only happens when draw count > 1 and you have access to more cards in the talon
+	if (lastIndex > wasteSize && wasteSize > -1) {
+		amountToDraw += wasteSize;
+		amountToDraw += stockSize;
+		for (int j = (stockSize > 0 && stockSize - lastIndex + wasteSize <= 0) ? 0 : stockSize - lastIndex + wasteSize; j > 0; j -= drawCount) {
+			talon[index] = stock.Up(j);
+			talonMoves[index++] = amountToDraw - j;
+		}
+	}
+
+	return index;
+}
 void Solitaire::UpdateAvailableMoves() {
 	movesAvailableCount = 0;
 	int foundationMin = FoundationMin();
+	Card talon[24];
+	int talonMoves[24];
+	int talonCount = GetTalonCards(talon, talonMoves);
 
 	//Check tableau to foundation, Check tableau to tableau
 	for (int i = TABLEAU1; i <= TABLEAU7; ++i) {
@@ -477,25 +588,30 @@ void Solitaire::UpdateAvailableMoves() {
 		}
 	}
 
-	//Check top of waste to foundation and waste to tableau
-	int wasteSize = piles[WASTE].Size();
+	//Check talon cards
+	for (int j = 0; j < talonCount; j++) {
+		Card talonCard = talon[j];
+		int foundation = talonCard.Foundation;
+		int cardsToDraw = talonMoves[j];
 
-	if (wasteSize > 0) {
-		Card wasteCard = piles[WASTE].Low();
-		int wasteFoundation = wasteCard.Foundation;
-
-		if (wasteCard.Rank - piles[wasteFoundation].Size() == 1) {
-			if (wasteCard.Rank <= foundationMin) {
+		if (talonCard.Rank - piles[foundation].Size() == 1) {
+			if (talonCard.Rank <= foundationMin) {
 				if (drawCount == 1) {
-					movesAvailable[0].Set(WASTE, wasteFoundation, 1, 0);
-					movesAvailableCount = 1;
+					if (cardsToDraw == 0 || movesAvailableCount == 0) {
+						movesAvailable[0].Set(WASTE, foundation, 1, cardsToDraw);
+						movesAvailableCount = 1;
+						return;
+					} else {
+						movesAvailable[movesAvailableCount++].Set(WASTE, foundation, 1, cardsToDraw);
+						break;
+					}
 				} else {
-					movesAvailable[movesAvailableCount++].Set(WASTE, wasteFoundation, 1, 0);
+					movesAvailable[movesAvailableCount++].Set(WASTE, foundation, 1, cardsToDraw);
+					continue;
 				}
-				return;
 			}
 
-			movesAvailable[movesAvailableCount++].Set(WASTE, wasteFoundation, 1, 0);
+			movesAvailable[movesAvailableCount++].Set(WASTE, foundation, 1, cardsToDraw);
 		}
 
 		for (int i = TABLEAU1; i <= TABLEAU7; ++i) {
@@ -504,140 +620,14 @@ void Solitaire::UpdateAvailableMoves() {
 			if (pile.Size() != 0) {
 				Card tableauCard = pile.Low();
 
-				if (tableauCard.Rank - wasteCard.Rank != 1 || tableauCard.IsRed == wasteCard.IsRed) {
+				if (tableauCard.Rank - talonCard.Rank != 1 || tableauCard.IsRed == talonCard.IsRed) {
 					continue;
 				}
 
-				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, 0);
-			} else if (wasteCard.Rank == KING) {
-				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, 0);
+				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, cardsToDraw);
+			} else if (talonCard.Rank == KING) {
+				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, cardsToDraw);
 				break;
-			}
-		}
-	}
-
-	//Check cards waiting to be turned over from stock
-	Pile & stock = piles[STOCK];
-	int stockSize = stock.Size();
-	for (int j = (stockSize > 0 && stockSize - drawCount <= 0) ? 0 : stockSize - drawCount; j >= 0; j -= drawCount) {
-		Card card1 = stock.Up(j);
-		int stockFoundation = card1.Foundation;
-
-		if (card1.Rank - piles[stockFoundation].Size() == 1) {
-			if (card1.Rank <= foundationMin) {
-				movesAvailable[movesAvailableCount++].Set(WASTE, stockFoundation, 1, stockSize - j);
-				if (drawCount == 1) {
-					return;
-				} else {
-					continue;
-				}
-			}
-
-			movesAvailable[movesAvailableCount++].Set(WASTE, stockFoundation, 1, stockSize - j);
-		}
-
-
-		for (int i = TABLEAU1; i <= TABLEAU7; ++i) {
-			Pile & pile2 = piles[i];
-
-			if (pile2.Size() != 0) {
-				Card card = pile2.Low();
-
-				if (card.Rank - card1.Rank != 1 || card.IsRed == card1.IsRed) {
-					continue;
-				}
-
-				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, stockSize - j);
-			} else if (card1.Rank == KING) {
-				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, stockSize - j);
-				break;
-			}
-		}
-
-		if (j > 0 && j < drawCount) { j = drawCount; }
-	}
-
-	//Check cards already turned over in the waste, meaning we have to "redeal" the deck to get to it
-	Pile & waste = piles[WASTE];
-	int amountToDraw = stockSize;
-	amountToDraw += stockSize;
-	amountToDraw += wasteSize;
-	amountToDraw++;
-	wasteSize--;
-
-	int lastIndex = drawCount - 1;
-	for (int j = drawCount - 1; j < wasteSize; j += drawCount, lastIndex = j) {
-		Card card1 = waste.Up(j);
-		int stockFoundation = card1.Foundation;
-
-		if (card1.Rank - piles[stockFoundation].Size() == 1) {
-			if (card1.Rank <= foundationMin) {
-				movesAvailable[movesAvailableCount++].Set(WASTE, stockFoundation, 1, amountToDraw + j);
-				if (drawCount == 1) {
-					return;
-				} else {
-					continue;
-				}
-			}
-
-			movesAvailable[movesAvailableCount++].Set(WASTE, stockFoundation, 1, amountToDraw + j);
-		}
-
-		for (int i = TABLEAU1; i <= TABLEAU7; ++i) {
-			Pile & pile2 = piles[i];
-
-			if (pile2.Size() != 0) {
-				Card card = pile2.Low();
-
-				if (card.Rank - card1.Rank != 1 || card.IsRed == card1.IsRed) {
-					continue;
-				}
-
-				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, amountToDraw + j);
-			} else if (card1.Rank == KING) {
-				movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, amountToDraw + j);
-				break;
-			}
-		}
-	}
-
-	//Check cards in stock after a "redeal". Only happens when draw count > 1 and you have access to more cards in the talon
-	if (lastIndex > wasteSize && wasteSize > -1) {
-		amountToDraw += wasteSize;
-		amountToDraw += stockSize;
-		for (int j = (stockSize > 0 && stockSize - lastIndex + wasteSize <= 0) ? 0 : stockSize - lastIndex + wasteSize; j > 0; j -= drawCount) {
-			Card card1 = stock.Up(j);
-			int stockFoundation = card1.Foundation;
-
-			if (card1.Rank - piles[stockFoundation].Size() == 1) {
-				if (card1.Rank <= foundationMin) {
-					movesAvailable[movesAvailableCount++].Set(WASTE, stockFoundation, 1, amountToDraw - j);
-					if (drawCount == 1) {
-						return;
-					} else {
-						continue;
-					}
-				}
-
-				movesAvailable[movesAvailableCount++].Set(WASTE, stockFoundation, 1, amountToDraw - j);
-			}
-
-
-			for (int i = TABLEAU1; i <= TABLEAU7; ++i) {
-				Pile & pile2 = piles[i];
-
-				if (pile2.Size() != 0) {
-					Card card = pile2.Low();
-
-					if (card.Rank - card1.Rank != 1 || card.IsRed == card1.IsRed) {
-						continue;
-					}
-
-					movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, amountToDraw - j);
-				} else if (card1.Rank == KING) {
-					movesAvailable[movesAvailableCount++].Set(WASTE, i, 1, amountToDraw - j);
-					break;
-				}
 			}
 		}
 	}

@@ -28,6 +28,7 @@ private:
 	int drawCount, roundCount, foundationCount, movesAvailableCount, movesMadeCount;
 
 	int FoundationMin();
+	int GetTalonCards(Card talon[], int talonMoves[]);
 public:
 	void Initialize();
 	int Shuffle(int dealNumber = -1);
@@ -40,7 +41,7 @@ public:
 	void UndoMove();
 	SolveResult SolveMinimalMultithreaded(int numThreads, int maxClosedCount);
 	SolveResult SolveMinimal(int maxClosedCount);
-	SolveResult SolveFast(int maxMovesToCheckPerBranch, int maxClosedCount);
+	SolveResult SolveFast(int maxClosedCount);
 	int MovesAvailableCount();
 	int MovesMadeCount();
 	int MovesMadeNormalizedCount();
