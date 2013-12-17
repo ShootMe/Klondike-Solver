@@ -20,7 +20,7 @@ bool LoadGame(string const& f, Solitaire & s, unsigned int & index) {
 		s.LoadPysol(f.substr(startIndex, index - startIndex));
 	} else if (f[index] == 'G' || f[index] == 'g') {
 		while (index < f.size() && f[index++] != ' ') {}
-		startIndex = index + 1;
+		startIndex = index;
 		while (index < f.size() && f[index++] != '\n') {}
 		s.Shuffle(atoi(f.substr(startIndex, index - startIndex).c_str()));
 	} else {
