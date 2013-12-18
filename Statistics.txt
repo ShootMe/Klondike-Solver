@@ -1,0 +1,61 @@
+1000 random games ran with the minimal solver with a maximum of 60 million states.
+'Solvable' means getting all cards to the foundation, 'impossible' otherwise.
+'Most likely impossible' means the game terminated after evaluating 60 million states and failed to find a solution.
+They are most likely impossible since games that do have a solution will most likely show up before 5 million states.
+
+Draw 1 (91.9% solvable) (16.679 sec/game):
+	919 solved
+	62 impossible
+	19 most likely impossible
+
+	Of those solved:
+		On average, games are solvable within the (Draw 1 - 2) game type
+		On average, games take 133 moves to solve (112 not including flips)
+Draw 2 (90.1% solvable) (12.938 sec/game):
+	901 solved
+	71 impossible
+	28 most likely impossible
+
+	Of those solved:
+		On average, games are solvable within the (Draw 2 - 3) game type
+		On average, games take 123 moves to solve (102 not including flips)
+Draw 3 (83.6% solvable) (8.204 sec/game):
+	836 solved
+	149 impossible
+	15 most likely impossible
+	
+	Of those solved:
+		On average, games are solvable within the (Draw 3 - 3) game type
+		On average, games take 121 moves to solve (100 not including flips)
+Draw 4 (70.9% solvable) (5.252 sec/game):
+	709 solved
+	285 impossible
+	6 most likely impossible
+	
+	Of those solved:
+		On average, games are solvable within the (Draw 4 - 4) game type
+		On average, games take 121 moves to solve (100 not including flips)
+Draw 5 (52.6% solvable):
+	526 solved
+	473 impossible
+	1 most likely impossible
+	
+	Of those solved:
+		On average, games are solvable within the (Draw 5 - 5) game type
+		On average, games take 120 moves to solve (99 not including flips)
+Draw 6 (34.5% solvable):
+	345 solved
+	655 impossible
+	0 most likely impossible
+	
+	Of those solved:
+		On average, games are solvable within the (Draw 6 - 5) game type
+		On average, games take 119 moves to solve (98 not including flips)
+Draw 7 (23.3% solvable):
+	233 solved
+	767 impossible
+	0 most likely impossible
+	
+	Of those solved:
+		On average, games are solvable within the (Draw 7 - 5) game type
+		On average, games take 118 moves to solve (97 not including flips)
