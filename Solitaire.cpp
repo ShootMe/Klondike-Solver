@@ -18,27 +18,28 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 	shared_ptr<MoveNode> firstNode = NULL;
 	shared_ptr<MoveNode> node = NULL;
 	Solitaire s = *solitaire;
+	int doneCount = 10;
+	while (closed.Size() < maxClosedCount && doneCount > 0) {
+		mtx.lock();
+		//Check for lowest score length
+		int index = startMoves;
+		while (index < 512 && open[index].size() == 0) { index++; }
 
-	while (closed.Size() < maxClosedCount) {
-		{
-			unique_lock<mutex> lck(mtx);
-			//Check for lowest score length
-			int index = startMoves;
-			while (index < 512 && open[index].size() == 0) { index++; }
-
-			//End solver if no more states
-			if (index >= 512) {
-				if (numProcessing == 0) { break; }
-				continue;
-			}
-
-			numProcessing++;
-
-			//Get next state to evaluate
-			openCount--;
-			firstNode = open[index].top();
-			open[index].pop();
+		//End solver if no more states
+		if (index >= 512) {
+			mtx.unlock();
+			doneCount--;
+			this_thread::sleep_for(chrono::milliseconds(1));
+			continue;
 		}
+
+		doneCount = 10;
+
+		//Get next state to evaluate
+		openCount--;
+		firstNode = open[index].top();
+		open[index].pop();
+		mtx.unlock();
 
 		//Initialize game to the found state
 		s.ResetGame();
@@ -81,12 +82,7 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 			//Dont check state if above or equal to current best solution
 			int helper = s.MinimumMovesLeft();
 			helper += movesTotal;
-			if (helper >= bestSolutionMoveCount) {
-				mtx.lock();
-				numProcessing--;
-				mtx.unlock();
-				continue;
-			}
+			if (helper >= bestSolutionMoveCount) { continue; }
 		}
 
 		int movesAvailableCount = s.MovesAvailableCount();
@@ -104,25 +100,20 @@ void SolitaireWorker::RunMinimalWorker(void * closedPointer) {
 				helper += 52 - s.FoundationCount() + s.RoundCount();
 				HashKey key = s.GameState();
 
-				{
-					unique_lock<mutex> lck(mtx);
-					KeyValue<int> * result = closed.Add(key, movesAdded);
-					if (result == NULL || result->Value > movesAdded) {
-						node = make_shared<MoveNode>(move, firstNode);
-						if (result != NULL) { result->Value = movesAdded; }
+				mtx.lock();
+				KeyValue<int> * result = closed.Add(key, movesAdded);
+				if (result == NULL || result->Value > movesAdded) {
+					node = make_shared<MoveNode>(move, firstNode);
+					if (result != NULL) { result->Value = movesAdded; }
 
-						openCount++;
-						open[helper].push(node);
-					}
+					openCount++;
+					open[helper].push(node);
 				}
+				mtx.unlock();
 			}
 
 			s.UndoMove();
 		}
-
-		mtx.lock();
-		numProcessing--;
-		mtx.unlock();
 	}
 }
 SolveResult SolitaireWorker::Run(int numThreads) {
@@ -171,7 +162,7 @@ SolveResult SolitaireWorker::Run(int numThreads) {
 	return result;
 }
 
-SolveResult Solitaire::SolveFast(int maxClosedCount) {
+SolveResult Solitaire::SolveFast(int maxClosedCount, int twoShift, int threeShift) {
 	MakeAutoMoves();
 	if (movesAvailableCount == 0) { return foundationCount == 52 ? SolvedMinimal : Impossible; }
 
@@ -190,8 +181,8 @@ SolveResult Solitaire::SolveFast(int maxClosedCount) {
 	Move bestSolution[512];
 	bestSolution[0].Count = 255;
 	int startMoves = MovesMadeNormalizedCount() + MinimumMovesLeft();
-	int threeClosed = maxClosedCount >> 2;
-	int twoClosed = maxClosedCount >> 1;
+	int threeClosed = maxClosedCount >> threeShift;
+	int twoClosed = maxClosedCount >> twoShift;
 	shared_ptr<MoveNode> firstNode = movesMadeCount > 0 ? make_shared<MoveNode>(movesMade[movesMadeCount - 1]) : NULL;
 	shared_ptr<MoveNode> node = firstNode;
 	for (int i = movesMadeCount - 2; i >= 0; i--) {
@@ -267,11 +258,16 @@ SolveResult Solitaire::SolveFast(int maxClosedCount) {
 				helper += 52 - foundationCount + roundCount;
 
 				if (helper < bestMoveHelper1) {
-					if (closed.Size() < twoClosed && bestMoveHelper1 < bestMoveHelper2) {
+					if (bestMoveHelper1 <= bestMoveHelper2) {
+						if (bestMoveHelper2 <= bestMoveHelper3) {
+							bestMove3 = bestMove2;
+							bestMoveAdded3 = bestMoveAdded2;
+							bestMoveHelper3 = bestMoveHelper2;
+						}
 						bestMove2 = bestMove1;
 						bestMoveAdded2 = bestMoveAdded1;
 						bestMoveHelper2 = bestMoveHelper1;
-					} else if (closed.Size() < threeClosed && bestMoveHelper1 < bestMoveHelper3) {
+					} else if (bestMoveHelper1 <= bestMoveHelper3) {
 						bestMove3 = bestMove1;
 						bestMoveAdded3 = bestMoveAdded1;
 						bestMoveHelper3 = bestMoveHelper1;
@@ -279,8 +275,8 @@ SolveResult Solitaire::SolveFast(int maxClosedCount) {
 					bestMove1 = move;
 					bestMoveAdded1 = movesAdded;
 					bestMoveHelper1 = helper;
-				} else if (closed.Size() < twoClosed && helper < bestMoveHelper2) {
-					if (closed.Size() < threeClosed && bestMoveHelper2 < bestMoveHelper3) {
+				} else if (helper < bestMoveHelper2) {
+					if (bestMoveHelper2 <= bestMoveHelper3) {
 						bestMove3 = bestMove2;
 						bestMoveAdded3 = bestMoveAdded2;
 						bestMoveHelper3 = bestMoveHelper2;
@@ -288,7 +284,7 @@ SolveResult Solitaire::SolveFast(int maxClosedCount) {
 					bestMove2 = move;
 					bestMoveAdded2 = movesAdded;
 					bestMoveHelper2 = helper;
-				} else if (closed.Size() < threeClosed && helper < bestMoveHelper3) {
+				} else if (helper < bestMoveHelper3) {
 					bestMove3 = move;
 					bestMoveAdded3 = movesAdded;
 					bestMoveHelper3 = helper;
@@ -314,7 +310,7 @@ SolveResult Solitaire::SolveFast(int maxClosedCount) {
 
 			UndoMove();
 		}
-		if (bestMoveHelper2 < 512) {
+		if (closed.Size() < twoClosed && bestMoveHelper2 < 512) {
 			MakeMove(bestMove2);
 
 			HashKey key = GameState();
@@ -330,7 +326,7 @@ SolveResult Solitaire::SolveFast(int maxClosedCount) {
 
 			UndoMove();
 		}
-		if (bestMoveHelper3 < 512) {
+		if (closed.Size() < threeClosed && bestMoveHelper3 < 512) {
 			MakeMove(bestMove3);
 
 			HashKey key = GameState();

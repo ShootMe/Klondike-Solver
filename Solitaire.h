@@ -41,7 +41,7 @@ public:
 	void UndoMove();
 	SolveResult SolveMinimalMultithreaded(int numThreads, int maxClosedCount);
 	SolveResult SolveMinimal(int maxClosedCount);
-	SolveResult SolveFast(int maxClosedCount);
+	SolveResult SolveFast(int maxClosedCount, int twoShift, int threeShift);
 	int MovesAvailableCount();
 	int MovesMadeCount();
 	int MovesMadeNormalizedCount();
