@@ -31,7 +31,8 @@ private:
 	int GetTalonCards(Card talon[], int talonMoves[]);
 public:
 	void Initialize();
-	int Shuffle(int dealNumber = -1);
+	int Shuffle1(int dealNumber = -1);
+	void Shuffle2(int dealNumber);
 	void ResetGame();
 	void ResetGame(int drawCount);
 	void UpdateAvailableMoves();

@@ -683,29 +683,46 @@ void Solitaire::ResetGame(int drawCount) {
 		piles[STOCK].AddUp(cards[i]);
 	}
 }
-int Solitaire::Shuffle(int dealNumber) {
+int Solitaire::Shuffle1(int dealNumber) {
 	if (dealNumber != -1) {
 		random.SetSeed(dealNumber);
 	} else {
-		dealNumber = random.Next();
+		dealNumber = random.Next1();
 		random.SetSeed(dealNumber);
 	}
 
-	Card temp;
-
-	for (int i = 0; i < 52; i++) {
-		cards[i].Set(i);
-	}
+	for (int i = 0; i < 52; i++) { cards[i].Set(i); }
 
 	for (int x = 0; x < 269; ++x) {
-		int k = random.Next() % 52;
-		int j = random.Next() % 52;
-		temp = cards[k];
+		int k = random.Next1() % 52;
+		int j = random.Next1() % 52;
+		Card temp = cards[k];
 		cards[k] = cards[j];
 		cards[j] = temp;
 	}
 
 	return dealNumber;
+}
+void Solitaire::Shuffle2(int dealNumber) {
+	for (int i = 0; i < 26; i++) { cards[i].Set(i); }
+	for (int i = 39; i < 52; i++) { cards[i].Set(i - 13); }
+	for (int i = 26; i < 39; i++) { cards[i].Set(i + 13); }
+
+	random.SetSeed(dealNumber);
+	for (int i = 0; i < 7; i++) {
+		for (int j = 0; j < 52; j++) {
+			int r = random.Next2() % 52;
+			Card temp = cards[j];
+			cards[j] = cards[r];
+			cards[r] = temp;
+		}
+	}
+
+	for (int i = 0, j = 51; i < 26; i++, j--) {
+		Card temp = cards[j];
+		cards[j] = cards[i];
+		cards[i] = temp;
+	}
 }
 int Solitaire::MinimumMovesLeft() {
 	Pile & waste = piles[WASTE];

@@ -22,7 +22,7 @@ bool LoadGame(string const& f, Solitaire & s, unsigned int & index) {
 		while (index < f.size() && f[index++] != ' ') {}
 		startIndex = index;
 		while (index < f.size() && f[index++] != '\n') {}
-		s.Shuffle(atoi(f.substr(startIndex, index - startIndex).c_str()));
+		s.Shuffle1(atoi(f.substr(startIndex, index - startIndex).c_str()));
 	} else {
 		while (index < f.size() && f[index++] != '\n') {}
 		s.LoadSolitaire(f.substr(startIndex, index - startIndex));
@@ -60,7 +60,7 @@ int main(int argc, char * argv[]) {
 			if (i + 1 >= argc) { cout << "You must specify a game number to load. Any integeral number."; return 0; }
 			if (commandLoaded) { cout << "Only one method can be specified (deck/game/file)."; return 0; }
 			commandLoaded = true;
-			s.Shuffle(atoi(argv[i + 1]));
+			s.Shuffle1(atoi(argv[i + 1]));
 			i++;
 		} else if (_stricmp(argv[i], "-out") == 0 || _stricmp(argv[i], "/out") == 0 || _stricmp(argv[i], "-o") == 0 || _stricmp(argv[i], "/o") == 0) {
 			if (i + 1 >= argc) { cout << "You must specify a valid output method. 0 or 1."; return 0; }

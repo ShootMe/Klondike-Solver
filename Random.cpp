@@ -16,6 +16,7 @@ Random::Random(int seed) {
 	SetSeed(seed);
 }
 void Random::SetSeed(int seed) {
+	this->seed = seed;
 	mix = 51651237;
 	twist = 895213268;
 	value = seed;
@@ -31,7 +32,14 @@ void Random::SetSeed(int seed) {
 		CalculateNext();
 	}
 }
-int Random::Next() {
+int Random::Next1() {
 	CalculateNext();
 	return value & 0x7fffffff;
+}
+int Random::Next2() {
+	if (seed == 0) { seed = 0x12345987; }
+	int k = seed / 127773;
+	seed = 16807 * (seed - k * 127773) - 2836 * k;
+	if ((int)seed < 0) { seed += 2147483647; }
+	return seed & 0x7fffffff;
 }
