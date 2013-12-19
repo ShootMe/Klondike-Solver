@@ -3,7 +3,7 @@ Klondike-Solver
 
 Klondike (Patience) Solver that finds minimal length solutions.
 
-KlondikeSolver [/DC] [/D] [/G] [/O] [/MP] [/S] [/F] [/R] [FilePath]
+KlondikeSolver [/DC] [/D] [/G] [/O] [/M] [/S] [/F] [/R] [FilePath]
 
 /DRAW # [/DC #] - Sets the draw count to use when solving. Defaults to 1.
 
