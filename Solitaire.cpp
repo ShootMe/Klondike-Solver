@@ -138,7 +138,6 @@ SolveResult SolitaireWorker::Run(int numThreads) {
 		node = node->Parent;
 	}
 	open[startMoves].push(firstNode);
-	numProcessing = 0;
 
 	thread * threads = new thread[numThreads];
 	for (int i = 0; i < numThreads; i++) {

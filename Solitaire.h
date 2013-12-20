@@ -73,7 +73,7 @@ private:
 	Move bestSolution[512];
 	Solitaire * solitaire;
 	mutex mtx;
-	int openCount, maxFoundationCount, bestSolutionMoveCount, startMoves, maxClosedCount, numProcessing;
+	int openCount, maxFoundationCount, bestSolutionMoveCount, startMoves, maxClosedCount;
 
 	void RunMinimalWorker(void * closed);
 	void RunFastWorker();
