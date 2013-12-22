@@ -161,6 +161,82 @@ SolveResult SolitaireWorker::Run(int numThreads) {
 	return result;
 }
 
+SolveResult Solitaire::SolveRandom(int numberOfTimesToPlay, int solutionsToFind) {
+	MakeAutoMoves();
+	if (movesAvailableCount == 0) { return foundationCount == 52 ? SolvedMinimal : Impossible; }
+
+	Move bestSolution[512];
+	bestSolution[0].Count = 255;
+	int bestSolutionMoveCount = 512;
+	int maxFoundationCount = 0;
+	int bestRoundCount = 10;
+
+	shared_ptr<MoveNode> firstNode = movesMadeCount > 0 ? make_shared<MoveNode>(movesMade[0]) : NULL;
+	shared_ptr<MoveNode> node = firstNode;
+	for (int i = 1; i < movesMadeCount; i++) {
+		node->Parent = make_shared<MoveNode>(movesMade[i]);
+		node = node->Parent;
+	}
+
+	int solutionCount = 0;
+	while ((maxFoundationCount < 52 || solutionCount < solutionsToFind) && numberOfTimesToPlay-- > 0) {
+		while (foundationCount < 52 && movesAvailableCount > 0 && movesMadeCount < 500 && roundCount <= 10) {
+			int drawIndex = -1;
+			for (int i = 0; i < movesAvailableCount; i++) {
+				if (movesAvailable[i].From == WASTE) {
+					drawIndex = i;
+					break;
+				}
+			}
+
+			if (drawIndex <= 0) {
+				MakeMove(random.Next1() % movesAvailableCount);
+			} else {
+				int r = random.Next1() % (drawIndex + (random.Next1() & 1) + (movesAvailableCount >> 3));
+				if (r >= drawIndex) {
+					MakeMove((random.Next1() % (movesAvailableCount - drawIndex)) + drawIndex);
+				} else {
+					MakeMove(r);
+				}
+			}
+			UpdateAvailableMoves();
+		}
+
+		if (foundationCount == 52 || foundationCount > maxFoundationCount) {
+			int movesTotal = MovesMadeNormalizedCount();
+			if (foundationCount == 52) { solutionCount++; }
+			if (foundationCount < 52 || movesTotal < bestSolutionMoveCount) {
+				if (foundationCount == 52) {
+					bestRoundCount = roundCount;
+					bestSolutionMoveCount = movesTotal;
+				}
+				maxFoundationCount = foundationCount;
+
+				//Save solution
+				for (int i = 0; i < movesMadeCount; i++) {
+					bestSolution[i] = movesMade[i];
+				}
+				bestSolution[movesMadeCount].Count = 255;
+			}
+		}
+
+		//Reset game
+		node = firstNode;
+		ResetGame(drawCount);
+		while (node != NULL) {
+			MakeMove(node->Value);
+			node = node->Parent;
+		}
+		UpdateAvailableMoves();
+	}
+
+	//Reset game to best solution found
+	ResetGame(drawCount);
+	for (int i = 0; bestSolution[i].Count < 255; i++) {
+		MakeMove(bestSolution[i]);
+	}
+	return foundationCount == 52 ? SolvedMayNotBeMinimal : CouldNotComplete;
+}
 SolveResult Solitaire::SolveFast(int maxClosedCount, int twoShift, int threeShift) {
 	MakeAutoMoves();
 	if (movesAvailableCount == 0) { return foundationCount == 52 ? SolvedMinimal : Impossible; }

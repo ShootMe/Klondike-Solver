@@ -43,6 +43,7 @@ public:
 	SolveResult SolveMinimalMultithreaded(int numThreads, int maxClosedCount);
 	SolveResult SolveMinimal(int maxClosedCount);
 	SolveResult SolveFast(int maxClosedCount, int twoShift, int threeShift);
+	SolveResult SolveRandom(int numberOfTimesToPlay, int solutionsToFind);
 	int MovesAvailableCount();
 	int MovesMadeCount();
 	int MovesMadeNormalizedCount();
