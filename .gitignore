@@ -5,6 +5,10 @@
 *.suo
 *.user
 *.sln.docstates
+*.o
+KlondikeSolver
+.depend
+*.swp
 
 # Build results
 
