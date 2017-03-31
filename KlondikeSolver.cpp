@@ -1,7 +1,10 @@
 #include<iostream>
 #include<fstream>
 #include<ctime>
+#include<cstring>
 #include"Solitaire.h"
+#define _stricmp strcasecmp
+
 using namespace std;
 
 bool LoadGame(string const& f, Solitaire & s, unsigned int & index) {
