@@ -1,0 +1,315 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Carp ();
+
+use Games::Solitaire::Verify::KlondikeTalon;
+use Games::Solitaire::Verify::Column;
+use Games::Solitaire::Verify::Foundations;
+
+package KlondikeBoard;
+
+use MooX qw/late/;
+
+has 'foundations' => (isa => 'Games::Solitaire::Verify::Foundations',
+    is => 'ro',
+    default => sub {
+        return Games::Solitaire::Verify::Foundations->new(
+            {
+                num_decks => 1,
+            }
+        );
+    },
+);
+
+has 'orig_talon_string' => (isa => 'Str', required => 1, is => 'ro',);
+has 'talon' => (isa => 'Games::Solitaire::Verify::KlondikeTalon',
+    lazy => 1,
+    is => 'ro',
+    default => sub {
+        my $self = shift;
+        return Games::Solitaire::Verify::KlondikeTalon->new({
+                string => $self->orig_talon_string(),
+                max_num_redeals => 3,
+            });
+        }
+);
+
+has 'orig_columns_strings' => (isa => 'ArrayRef[Str]', required => 1, is => 'ro',);
+
+has 'columns' => (isa => 'ArrayRef[Games::Solitaire::Verify::Column]', lazy => 1, is => 'ro',
+    default => sub {
+        my $self = shift;
+        return [
+            map
+            {
+                Games::Solitaire::Verify::Column->new(
+                   { string => $_ }
+                )
+            }
+            @{$self->orig_columns_strings()}
+        ];
+    }
+);
+
+sub try_to_put_in_foundations
+{
+    my ($self, $card) = @_;
+
+    my $idx = 0;
+
+    my $suit = $card->suit;
+
+    if ($self->foundations->value($suit, $idx) == $card->rank()-1)
+    {
+        $self->foundations->increment($card->suit(), $idx);
+    }
+    else
+    {
+        Carp::confess("Cannot increment from card " . $card->to_string());
+    }
+}
+
+sub can_put
+{
+    my ($self, $args) = @_;
+
+    my $parent = $args->{parent};
+    my $child = $args->{child};
+
+    return
+    (
+        ($parent->color() ne $child->color())
+            and
+        ($parent->rank() == $child->rank()+1)
+    );
+}
+
+package main;
+
+use IO::All;
+use Getopt::Long qw(GetOptions);
+
+my ($board_fn, $solution_fn, $help);
+
+GetOptions(
+    'h|help' => \$help,
+    'board=s' => \$board_fn,
+    'solution=s' => \$solution_fn,
+) or die "Wrong arguments - $! - type --help for more info.";
+
+if ($help)
+{
+    print <<'EOF';
+This program verifies the Klondike solutions of KlondikeSolver (
+https://github.com/shlomif/KlondikeSolver ) and displays them in a more
+user-friendly manner.
+
+It requires:
+
+1. An initial board as given by «make_pysol_freecell_board.py -t 24 klondike»
+(note the "-t").
+
+2. A solution as given by:
+
+make_pysol_freecell_board.py -t 24 klondike | perl from-fc-solve-board-gen > deck.txt
+./KlondikeSolver deck.txt | tee solution.txt
+
+After that run it with --board and --solution and capture its output to
+standard output.
+EOF
+    exit(0);
+}
+if (!defined($board_fn))
+{
+    die "--board or --help not specified.";
+}
+
+if (!defined($solution_fn))
+{
+    die "--solution or --help not specified.";
+}
+
+my $board_str = io->file($board_fn)->all();
+
+my @board_lines = split(/\n/, $board_str);
+
+my $talon_line = shift(@board_lines);
+
+my $board = KlondikeBoard->new(
+    {
+        orig_columns_strings => [map { ": $_" } @board_lines],
+        orig_talon_string => $talon_line,
+    }
+);
+
+use List::Util qw(first);
+
+my $moves_line = (( io->file($solution_fn)->getlines())[-2]);
+
+pos($moves_line) = 0;
+
+my $out_fh;
+open $out_fh, '>&STDOUT';
+
+my $out_board = sub {
+    print {$out_fh} $board->foundations->to_string(), "\n", $board->talon->to_string(), "\n", map { $_->to_string(), "\n", } @{$board->columns()};
+    print {$out_fh} "\n\n";
+};
+
+# $board->talon->draw();
+
+$out_board->();
+
+while ($moves_line =~ m/\G *(\S+)/gms)
+{
+    my $move = $1;
+
+    if (my ($count) = $move =~ /\ADR([0-9]+)\z/)
+    {
+        for my $i (1 .. $count)
+        {
+            $board->talon->draw();
+            $out_fh->print("Move Draw\n\n");
+        }
+    }
+    elsif ($move =~ /\AW[CHSD](?:-([0-9]+))?\z/)
+    {
+        my $count = $1 || 1;
+        for my $i (1 .. $count)
+        {
+            my $card = $board->talon->extract_top();
+            $board->try_to_put_in_foundations($card);
+            printf {$out_fh} "Move %s from Waste to Foundations\n\n", $card->to_string();
+        }
+    }
+    elsif (my ($col_idx) = $move =~ /\A([1-7])[CHSD](?:-([0-9]+))?\z/)
+    {
+        # 1-based instead of 0-based.
+        --$col_idx;
+
+        my $count = $2 || 1;
+
+        for my $i (1 .. $count)
+        {
+            my $col = $board->columns->[$col_idx];
+
+            my $card = $col->pop();
+
+            if (!defined($card))
+            {
+                die "No card at column $col_idx.";
+            }
+
+            if ($card->is_flipped())
+            {
+                die "Card " . $card->to_string() . " is flipped.";
+            }
+
+            $board->try_to_put_in_foundations($card);
+
+            printf {$out_fh} "Move %s from Column %d to Foundations\n\n", $card->to_string(), $col_idx;
+        }
+    }
+    elsif (($col_idx) = $move =~ /\AW([1-7])(?:-([0-9]+))?\z/)
+    {
+        $col_idx--;
+
+        my $count = $2 || 1;
+
+        for my $i (1 .. $count)
+        {
+            my $card = $board->talon->extract_top();
+
+            my $col = $board->columns->[$col_idx];
+            my $parent_card = $col->top();
+
+            if ($col->len() && $parent_card->is_flipped())
+            {
+                die "Cannot perform '$move' because parent card is flipped.";
+            }
+            if ($col->len() && (!$board->can_put({parent => $parent_card , child => $card, })))
+            {
+                die "Cannot perform '$move' due to parent/child mismatch.";
+            }
+            $col->push($card);
+            printf {$out_fh} "Move %s from Waste to Column %d\n\n", $card->to_string(), $col_idx;
+        }
+    }
+    elsif ($move eq 'NEW')
+    {
+        $board->talon->redeal();
+        print {$out_fh} "Move: Redeal talon.\n\n";
+    }
+    elsif (($col_idx) = $move =~ /\AF([0-9]+)\z/)
+    {
+        --$col_idx;
+        my $col = $board->columns->[$col_idx];
+        my $parent_card = $col->top();
+
+        if (! $parent_card->is_flipped())
+        {
+            die "Cannot perform '$move' because parent card is not flipped.";
+        }
+        $parent_card->set_flipped(0);
+
+        printf {$out_fh} "Move: flip %s on Column %d\n\n", $parent_card->to_string(), $col_idx;
+    }
+    elsif (my ($src_col_idx, $dest_col_idx, $with_cards) = $move =~ /\A([0-9])([0-9])((?:-[0-9]+)?)\z/)
+    {
+        $src_col_idx--;
+        $dest_col_idx--;
+
+        my $num_cards = ($with_cards ? ($with_cards =~ s/\A-//r) : 1);
+
+        my $dest_col = $board->columns->[$dest_col_idx];
+        my $parent_card = $dest_col->top();
+
+        if ($dest_col->len() && $parent_card->is_flipped())
+        {
+            die "Cannot perform '$move' because parent card is flipped.";
+        }
+
+        my $src_col = $board->columns->[$src_col_idx];
+        foreach my $i (1 .. $num_cards)
+        {
+            my $card = $src_col->pos(-$i);
+            if ($card->is_flipped())
+            {
+                die "Cannot perform '$move' because source card '" . $card->to_string() . "' is flipped.";
+            }
+        }
+
+        my $src_card = $src_col->pos(-$num_cards);
+
+        if ($dest_col->len() && (!$board->can_put({parent => $parent_card , child => $src_card, })))
+        {
+            die "Cannot perform '$move' due to parent/child mismatch.";
+        }
+
+        my @cards;
+
+        foreach my $i (1 .. $num_cards)
+        {
+            push @cards, $src_col->pop();
+        }
+        foreach my $i (1 .. $num_cards)
+        {
+            $dest_col->push( pop(@cards) );
+        }
+        printf {$out_fh} "Move %d cards from Column %d to Column %d\n\n",
+            $num_cards, $src_col_idx, $dest_col_idx;
+    }
+    else
+    {
+        die "Unknown move '$move';"
+    }
+    print {$out_fh} "--------------\n\n";
+
+    $out_board->();
+
+    print {$out_fh} "\n\n==============\n\n";
+
+}
