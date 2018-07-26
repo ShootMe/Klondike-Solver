@@ -1,0 +1,85 @@
+#!/usr/bin/perl
+
+# This Perl program is a UNIX-like filter that processes the output of 
+# invocations such as:
+#
+# make_pysol_freecell_board.py -t [board_num] klondike
+#
+# into decks file acceptable by KlondikeSolver.
+#
+# A sample invocation is:
+#
+# make_pysol_freecell_board.py -t 24 klondike | perl from-fc-solve-board-gen
+
+use strict;
+use warnings;
+
+my $card_re = qr/[A23456789TJQK][HCDS]/;
+
+my @ranks = (0, 'A', 2 .. 9, qw(T J Q K));
+my %rank_map = (map { $ranks[$_] => sprintf("%02d", $_) } (1 .. $#ranks));
+my @suits = (0, qw(C D H S));
+my %suit_map = (map { $suits[$_] => $_ } (1 .. $#suits));
+
+sub card_to_numerics
+{
+    my ($card) = @_;
+    my ($rank, $suit) = split//,$card;
+
+    return $rank_map{$rank}.$suit_map{$suit};
+}
+
+my @lines = (<ARGV>);
+chomp(@lines);
+
+my $talon_line = shift(@lines);
+if ($talon_line !~ s/^Talon: //)
+{
+    die "First line is not a talon.";
+}
+
+my @talon_cards = ($talon_line =~ m/\b($card_re)\b/g);
+
+if (@talon_cards != 52-29+1)
+{
+    die "Wrong number of cards in the talon line - " . scalar(@talon_cards)  . ".";
+}
+
+my @cards_in_lines = (map { [ $_ =~ m/\b($card_re)\b/g ] } @lines);
+my @col_cards;
+foreach my $height (0 .. (7-1))
+{
+    push @col_cards, (map { $_->[$height] } @cards_in_lines[$height .. $#cards_in_lines]);
+}
+
+print ((map { card_to_numerics($_) } (@col_cards, @talon_cards)), "\n");
+
+=head1 COPYRIGHT & LICENSE
+
+Copyright 2012 by Shlomi Fish
+
+This program is distributed under the MIT (X11) License:
+L<http://www.opensource.org/licenses/mit-license.php>
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+
+=cut
